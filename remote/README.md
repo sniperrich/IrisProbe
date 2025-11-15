@@ -20,7 +20,12 @@
    ```bash
    docker compose -f remote/docker-compose.yml up -d control-plane probe-local
    ```
-3. 如果你在其他服务器也想运行探针，可拷贝 `probe/agent.js`，设置 `PROBE_ENDPOINT=http://<远程服务器IP>:5050/api/telemetry` 后运行即可（可使用 systemd/PM2）。
+3. 如果你在其他服务器也想运行探针，可拷贝 `probe/agent.js`，设置 `PROBE_ENDPOINT=http://<远程服务器IP>:5050/api/telemetry` 后运行即可（可使用 systemd/PM2）。如果沿用 `docker-compose.yml` 中的 `probe-local` 服务，支持通过环境变量覆盖：
+   ```bash
+   PROBE_ENDPOINT=http://96.126.191.17:5050/api/telemetry \
+   PROBE_NODE_ID=edge-01 \
+   docker compose -f remote/docker-compose.yml up -d probe-local
+   ```
 
 ## 配置说明
 

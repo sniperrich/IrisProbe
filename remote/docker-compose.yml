@@ -20,7 +20,7 @@ services:
     container_name: nebula-probe-local
     command: ['node', 'probe/agent.js']
     environment:
-      PROBE_ENDPOINT: http://control-plane:5050/api/telemetry
+      PROBE_ENDPOINT: ${PROBE_ENDPOINT:-http://control-plane:5050/api/telemetry}
       PROBE_NODE_ID: docker-node
       PROBE_REGION: docker-edge
       PROBE_ROLE: monitor

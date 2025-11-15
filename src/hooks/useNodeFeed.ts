@@ -30,7 +30,8 @@ const fallbackNode = (defaults: ServerNode[]) =>
   }
 
 const normalizeNodes = (nodes: ServerNode[] | undefined, defaults: ServerNode[]) => {
-  if (!nodes?.length) return defaults
+  if (!nodes) return defaults
+  if (nodes.length === 0) return []
   const base = fallbackNode(defaults)
   return nodes.map((node) => ({
     ...base,
@@ -39,8 +40,10 @@ const normalizeNodes = (nodes: ServerNode[] | undefined, defaults: ServerNode[])
   }))
 }
 
-const normalizeList = <T,>(list: T[] | undefined, fallback: T[]) =>
-  Array.isArray(list) && list.length ? list : fallback
+const normalizeList = <T,>(list: T[] | undefined, fallback: T[]) => {
+  if (!Array.isArray(list)) return fallback
+  return list
+}
 
 export function useNodeFeed(defaultPayload: Payload) {
   const [payload, setPayload] = useState<Payload>(defaultPayload)

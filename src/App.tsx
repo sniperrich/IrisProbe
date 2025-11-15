@@ -2,79 +2,45 @@ import { useEffect, useState } from 'react'
 import './App.css'
 import { useNodeFeed } from './hooks/useNodeFeed'
 import type { AlertItem, ServerNode, TimelineItem } from './types/server'
+import DebugPanel from './components/DebugPanel'
 
 const serverHealth: ServerNode[] = [
   {
-    name: 'Edge-01',
-    region: '华南集群 · Guangzhou',
+    name: 'Sample-Node',
+    region: '示例集群 · Offline',
     status: 'online',
-    load: 67,
+    load: 40,
     latency: 24,
-    traffic: '1.2 Gbps',
-    role: '边缘缓存池',
-    uptime: '218h',
-    capacity: '12-node pod',
-    maintenance: '风冷回路换新完成',
-  },
-  {
-    name: 'Core-Alpha',
-    region: '亚太核心 · Singapore',
-    status: 'online',
-    load: 41,
-    latency: 18,
-    traffic: '980 Mbps',
-    role: '交易路由主枢',
-    uptime: '512h',
-    capacity: '32 vCPU / 256 GB',
-    maintenance: '周四 02:00 将窗口式升级',
-  },
-  {
-    name: 'Edge-07',
-    region: '北美边缘 · Seattle',
-    status: 'degraded',
-    load: 82,
-    latency: 39,
-    traffic: '1.5 Gbps',
-    role: '实时渲染出站',
-    uptime: '146h',
-    capacity: 'GPU pod x8',
-    maintenance: '待更换液冷组件',
-  },
-  {
-    name: 'GPU-Vault',
-    region: '渲染农场 · Tokyo',
-    status: 'online',
-    load: 54,
-    latency: 28,
-    traffic: '2.1 Gbps',
-    role: 'AI 预训练备舱',
-    uptime: '342h',
-    capacity: 'A100 x16',
-    maintenance: '功耗策略调优中',
+    traffic: '0.8 Gbps',
+    role: '示例节点（未连接）',
+    uptime: '12h',
+    capacity: '8 vCPU / 32 GB',
+    maintenance: '等待连接至 IrisProbe 控制面',
   },
 ]
 
 const trafficTrend = [
-  { label: '02:00', value: 64 },
-  { label: '04:00', value: 52 },
-  { label: '06:00', value: 75 },
-  { label: '08:00', value: 88 },
-  { label: '10:00', value: 69 },
-  { label: '12:00', value: 90 },
-  { label: '14:00', value: 72 },
-  { label: '16:00', value: 60 },
+  { label: '02:00', value: 35 },
+  { label: '04:00', value: 28 },
+  { label: '06:00', value: 48 },
+  { label: '08:00', value: 52 },
+  { label: '10:00', value: 41 },
+  { label: '12:00', value: 58 },
+  { label: '14:00', value: 33 },
+  { label: '16:00', value: 38 },
 ]
 
 const timeline: TimelineItem[] = [
-  { time: '16:20', event: 'Traffic Surge', detail: 'CN 集群自动扩容 6 个节点完成' },
-  { time: '15:45', event: 'Latency Alert', detail: 'Edge-07 改走 JP 主干以压低 RTT' },
-  { time: '14:02', event: 'Config Sync', detail: '零停机发布 rev 5.11 已完成' },
-  { time: '12:37', event: 'AI Optimizer', detail: '预测缓存使出口流量减 32%' },
+  { time: '12:00', event: 'IrisProbe', detail: '等待与远程控制面的 WebSocket 建立连接' },
 ]
 
 const alerts: AlertItem[] = [
-  { title: 'Edge-07 冷却速率偏高', level: 'warning', metric: '45°C', action: '切换至液冷通道' },
-  { title: 'Core-Alpha IOPS 峰值', level: 'info', metric: '410k', action: '流量削峰策略已开启' },
+  {
+    title: '尚未连接远程节点',
+    level: 'info',
+    metric: '—',
+    action: '填写 .env.local 中的 VITE_NODE_API / VITE_NODE_WS 并重新启动前端',
+  },
 ]
 
 const fallbackPayload = {
@@ -84,6 +50,8 @@ const fallbackPayload = {
 }
 
 function App() {
+  const apiBase = import.meta.env.VITE_NODE_API ?? '未配置'
+  const wsEndpoint = import.meta.env.VITE_NODE_WS ?? '未配置'
   const {
     nodes: liveNodes,
     alerts: liveAlerts,
@@ -93,31 +61,38 @@ function App() {
     error: feedError,
   } = useNodeFeed(fallbackPayload)
 
-  const [selectedServer, setSelectedServer] = useState<ServerNode | null>(liveNodes[0] ?? null)
+  const [selectedServer, setSelectedServer] = useState<ServerNode | null>(serverHealth[0] ?? null)
+  const [view, setView] = useState<'overview' | 'debug'>('overview')
   const connectionBadgeClass =
     feedStatus === 'live' ? 'online' : feedStatus === 'connecting' ? 'connecting' : 'offline'
+  const hasLiveNodes = liveNodes.length > 0
+  const displayNodes = hasLiveNodes ? liveNodes : serverHealth
   const connectionLabel = (() => {
     if (feedStatus === 'live') {
+      if (!liveNodes.length) return '实时 · 当前无节点返回数据'
       return lastSync ? `实时 · ${new Date(lastSync).toLocaleTimeString()}` : '实时'
     }
-    if (feedStatus === 'connecting') return '正在连接 WebSocket'
+    if (feedStatus === 'connecting') return '正在连接 IrisProbe WebSocket'
     if (feedStatus === 'offline') return '离线 · 使用本地样本'
     return '待命'
   })()
 
   useEffect(() => {
-    if (!liveNodes.length) return
-    if (!selectedServer) {
-      setSelectedServer(liveNodes[0])
+    if (!displayNodes.length) {
+      setSelectedServer(null)
       return
     }
-    const match = liveNodes.find((node) => node.name === selectedServer.name)
+    if (!selectedServer) {
+      setSelectedServer(displayNodes[0])
+      return
+    }
+    const match = displayNodes.find((node) => node.name === selectedServer.name)
     if (match) {
       setSelectedServer(match)
     } else {
-      setSelectedServer(liveNodes[0])
+      setSelectedServer(displayNodes[0])
     }
-  }, [liveNodes, selectedServer?.name])
+  }, [displayNodes, selectedServer?.name])
 
   const handleSelectServer = (server: ServerNode) => {
     setSelectedServer(server)
@@ -127,14 +102,22 @@ function App() {
     <div className="dashboard-shell">
       <header className="hero glass">
         <div>
-          <p className="eyebrow">Nebula Fabric / 控制塔</p>
-          <h1>全球算力视图</h1>
+          <p className="eyebrow">IrisProbe / 实时探针</p>
+          <h1>IrisProbe 控制视图</h1>
           <p className="hero-copy">
-            汇总实时 SLA、热度与容量窗口，用更克制的界面呈现核心指标。下方节点列表可点选以查看精细运行数据。
+            将各服务器部署的探针数据统一回传，直接在本地浏览器查看实时健康度。默认仅保留一个示例节点，其余会根据控制面广播的真实节点自动填充。
           </p>
           <div className="hero-actions">
-            <button className="primary">打开调度计划</button>
-            <button className="ghost">导出日报</button>
+            <button className="primary">查看调度计划</button>
+            <button className="ghost">导出探针报表</button>
+          </div>
+          <div className="view-toggle">
+            <button className={view === 'overview' ? 'active' : ''} onClick={() => setView('overview')}>
+              运行概览
+            </button>
+            <button className={view === 'debug' ? 'active' : ''} onClick={() => setView('debug')}>
+              调试面板
+            </button>
           </div>
         </div>
         <div className="hero-metrics">
@@ -156,7 +139,9 @@ function App() {
         </div>
       </header>
 
-      <section className="core-metrics">
+      {view === 'overview' ? (
+        <>
+          <section className="core-metrics">
         <article className="metric-card glass">
           <header>
             <p>零故障倒计时</p>
@@ -181,7 +166,21 @@ function App() {
           <strong>93%</strong>
           <p>AI 驱动的热度预取模型</p>
         </article>
-      </section>
+          </section>
+        </>
+      ) : (
+        <DebugPanel
+          nodes={liveNodes}
+          alerts={liveAlerts}
+          timeline={liveTimeline}
+          status={feedStatus}
+          lastSync={lastSync}
+          error={feedError}
+          apiBase={apiBase}
+          wsEndpoint={wsEndpoint}
+          fallbackNodes={serverHealth}
+        />
+      )}
 
       <section className="main-grid">
         <article className="traffic-panel glass">
@@ -221,16 +220,19 @@ function App() {
               <h2>四象限拓扑</h2>
             </div>
             <div className="panel-meta">
-              <div className="pill online">AI 审核通过</div>
+              <div className="pill online">IrisProbe 在线</div>
               <div className={`data-status ${connectionBadgeClass}`}>
                 <span className="dot" />
                 {connectionLabel}
               </div>
               {feedError ? <span className="status-hint">{feedError}</span> : null}
+              {!feedError && feedStatus === 'live' && !liveNodes.length ? (
+                <span className="status-hint">控制面在线，但尚未收到任何节点推送</span>
+              ) : null}
             </div>
           </header>
           <div className="server-grid">
-            {liveNodes.map((server) => (
+            {displayNodes.map((server) => (
               <button
                 key={server.name}
                 className={`server-card ${selectedServer?.name === server.name ? 'active' : ''}`}
@@ -262,6 +264,17 @@ function App() {
               </button>
             ))}
           </div>
+          {feedStatus === 'live' && !liveNodes.length ? (
+            <p className="server-hint">
+              IrisProbe 已成功连接 {apiBase} ，但控制面尚未收到任何探针上报。请检查远程服务器的探针配置（`PROBE_ENDPOINT`、`PROBE_NODE_ID` 等）并确认容器日志是否有
+              push 记录。
+            </p>
+          ) : null}
+          {feedStatus !== 'live' ? (
+            <p className="server-hint">
+              当前使用示例节点 `Sample-Node`。请确保项目根目录的 `.env.local` 中写入远程 `VITE_NODE_API` 与 `VITE_NODE_WS`，然后重新启动前端。
+            </p>
+          ) : null}
         </article>
       </section>
 
@@ -346,17 +359,29 @@ function App() {
               <h2>智能巡检</h2>
             </header>
             <div className="alert-list">
-              {liveAlerts.map((alert) => (
-                <div key={alert.title} className={`alert ${alert.level}`}>
-                  <div>
-                    <strong>{alert.title}</strong>
-                    <p>{alert.action}</p>
+              {liveAlerts.length ? (
+                liveAlerts.map((alert) => (
+                  <div key={alert.title} className={`alert ${alert.level}`}>
+                    <div>
+                      <strong>{alert.title}</strong>
+                      <p>{alert.action}</p>
+                    </div>
+                    <span>{alert.metric}</span>
                   </div>
-                  <span>{alert.metric}</span>
+                ))
+              ) : (
+                <div className="alert info">
+                  <div>
+                    <strong>控制面在线</strong>
+                    <p>暂无异常告警，从 IrisProbe 控制面未收集到 Warning/Info。</p>
+                  </div>
+                  <span>OK</span>
                 </div>
-              ))}
+              )}
             </div>
-            <button className="primary ghosted">推送至指挥链</button>
+            {feedStatus !== 'live' ? (
+              <p className="status-hint">当前展示为示例告警，连接上控制面后将实时刷新。</p>
+            ) : null}
           </article>
         </div>
       </section>

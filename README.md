@@ -82,3 +82,14 @@ VITE_NODE_WS=ws://<remote-ip>:5050/api/ws
 ```
 
 See `remote/README.md` for details.
+
+### Quick Probe Runner (Debian-friendly)
+
+On any Debian server, you can run the probe without touching Docker:
+
+```bash
+chmod +x scripts/run-irisprobe.sh
+./scripts/run-irisprobe.sh
+```
+
+The script checks for Node.js (installs Node 20 via NodeSource if missing), prompts for the control-plane endpoint (e.g. `http://96.126.191.17:5050/api/telemetry`), node ID, region, and role, then launches `probe/agent.js` with those values. Keep the process alive (tmux/systemd) so IrisProbe keeps receiving metrics.
