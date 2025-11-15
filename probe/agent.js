@@ -98,11 +98,11 @@ async function main() {
     if (buffer.length >= batchSize) {
       void flushBuffer()
     }
-  }, pushInterval).unref()
+  }, pushInterval)
 
   const keepAlive = setInterval(() => {
     void flushBuffer()
-  }, Math.max(pushInterval * 2, 15000)).unref()
+  }, Math.max(pushInterval * 2, 15000))
 
   const shutdown = async () => {
     console.log('[probe] shutting down, flushing buffer...')
